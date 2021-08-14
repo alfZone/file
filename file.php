@@ -12,7 +12,7 @@ use classes\pclzip\PclZip;
  * There are still several methods to solve and test
  * 
  * @author Ant�nio Lira Fernandes
- * @version 1.5
+ * @version 2.0
  * @updated 09-Jan-2021 18:10:03
  */
 
@@ -46,8 +46,9 @@ use classes\pclzip\PclZip;
 // get_protocolos($i) - devolve o protocolo na posição $i da lista. $i é a posição no array.
 // gravaFicheiroTexto($ficheiro,$texto) - guarda um ficheiro que é passado. $ficheiro é o nome mais o caminho para o ficheiro. $texto é o 
 //                                        conteudo a ser guardado no ficheiro
-// limpaCaca($string) - Limpa os caracteres especiais nos nomes dos ficheiros. $string é o texto em que pretendemos substituir caracteres
-//                      acentuados e por as mesmas letras sem acentos, o ç pelo c e os espaços por _. Devolve uma string "limpa".
+// limpaCaca($string) | cleanSpecialCharacters($string) - Limpa os caracteres especiais nos nomes dos ficheiros. $string é o texto em que pretendemos 
+//                                                        substituir caracteres acentuados e por as mesmas letras sem acentos, o ç pelo c e os espaços 
+//                                                        por _. Devolve uma string "limpa".
 // makeDir($caminho) - cria directorios até ficarmos com a estrutura de ficheiros que é passada. Por exemplo se tivermos uma árvore até 
 //                     c:\aa\bb e enviarmos um caminho c:\aa\bb\cc\dd será criado o directório cc e o directorio dd. $caminho é o caminho
 //                     com a(s) nova(s) pasta(s) a ser(em) criada(s)
@@ -126,7 +127,7 @@ class File {
     /**
      * lista de ficheiros
      */
-     var $lst;
+     var $lst=[];
 	/**
 	 * nome do ficheiro
 	 */
@@ -138,25 +139,35 @@ class File {
     var $protocolos= array('http://','ftp://','gopher://','https://');
 
   
-  // Devolve o tipo de ficheiro. $fileName é o caminho e o ficheiro que queremos perceber o tipo
+  // (pt) Devolve o tipo de ficheiro. $fileName é o caminho e o ficheiro que queremos perceber o tipo
+  // (en) provides the extension of a file if it is a file or the dir indication for a directory
   
 	public function getFileType($fileName) {
-    $parts=explode(".",$fileName);
-    if (count($parts)>1){
-      //have extension
-      return $parts[count($parts)-1];
-    }else{
-      return "dir";
+    $res=filetype($fileName);
+    if ($res!="dir"){
+      $parts=explode(".",$fileName);
+      if (count($parts)>1){
+        //have extension
+        $res= $parts[count($parts)-1];
+      }  
     }
+    return $res;
     
   }
 
-  
+  //###############################################################
   
 	// Limpa os caracteres especiais nos nomes dos ficheiros. $string é o texto em que pretendemos substituir caracteres
-    //  acentuados e por as mesmas letras sem acentos, o ç pelo c e os espaços por _. Devolve uma string "limpa".
-	function limpaCaca($string) {
-
+  //  acentuados e por as mesmas letras sem acentos, o ç pelo c e os espaços por _. Devolve uma string "limpa".
+  
+  
+  function limpaCaca($string) {
+    return $this->cleanSpecialCharacters($string); 
+  }
+  
+  // Clears special characters in file names. $string is the text where we want to replace accented characters with the same unaccented letters, the ç with the c and the spaces with _. Returns a "clean" string.
+  // Sometimes file names have special characters which then create problems in file systems, especially when using Latin language accent symbols.
+	function cleanSpecialCharacters($string) {
     // matriz de entrada
     $what = array( 'ä','ã','à','á','â','ê','ë','è','é','ï','ì','í','ö','õ','ò','ó','ô','ü','ù','ú','û','À','Á','É','Í','Ó','Ú','ñ','Ñ','ç','Ç',' ','-','(',')',',',';',':','|','!','"','#','$','%','&','/','=','?','~','^','>','<','ª','º' );
 
@@ -180,7 +191,7 @@ class File {
   
   function chgrp($dir,$grupo) {
 
-    system("/bin/chgrp -R $dono $grupo");
+    system("/bin/chgrp -R $grupo $dir");
         
     }
   
@@ -225,48 +236,23 @@ class File {
 	 * 
 	 * @param dir é o caminho até ao directório que pretendemos obter a sua lista de ficheiros
 	 */
-	function dir($dir){
+	function dir($dir, $order=0, $recursive=false){
 
     if (substr($dir, strlen($dir)-1, 1) != '/')
        $dir .= '/';
 
     //echo $dir;
-
-    $this->lst="";
-    if (is_dir($dir)){
-        if ($handle = opendir($dir)){
-            //echo $handle;
-            $i=0;
-            while ($obj = readdir($handle)){
-                //echo $obj . "<br>";
-                if ($obj != '.' && $obj != '..'){
-                    if (is_file($dir.$obj)){
-                        //if (!unlink($dir.$obj)){
-                        //    $this->est=0;
-                        //    $this->msg="rderro1";
-                        //    return false;
-                        //}else{
-                          $this->put_lst($obj,$i);
-                          $i++;
-                          //echo $obj. "<br>";
-                          
-                        //}
-                        
-                    }
-                }
-            }
-            closedir($handle);
-
-            $this->est=1;
-            $this->msg="rdok";
-            return true;
+    $list=scandir($dir, $order);
+    $this->lst["$dir"]=$list;
+    if ($recursive==true){
+      foreach ($list as $element){
+        if ((is_dir($dir ."/". $element) and ($element!=".") and ($element!=".."))){
+          $this->dir($dir ."/". $element, $order, $recursive);
         }
+      }  
     }
-   //$this->lst="";
-   $this->est=0;
-   $this->msg="rderro1";
-   return false;
-
+    
+    return $this->lst;
 
 	}
 
@@ -410,6 +396,8 @@ class File {
      * devolve o elemento da lista de ficheiros na posição $i
      */
     function get_lst($i){
+        //print_r($this->lst);
+      //echo array_reduce($this->lst);
         return $this->lst[$i];
     }
 
@@ -1127,9 +1115,12 @@ function rm($fileglob){
       $n=$this->num_lst();
       //echo "N: $n<br>";
       if ($n>0){
-        $txt.="Lista de Ficheiro<br>";
-        for($i=0;$i<$n;$i++){
-            $txt.=$this->get_lst($i)."<br>";
+        $txt.="Lista de Ficheiros<br>";
+        foreach($this->lst as $key =>$elementoArray){
+            $txt.="<b>" . $key . "</b><br>";
+            foreach($elementoArray as $elemento){
+              $txt.=$elemento."<br>";
+            }
         }
       }
       return $txt;
@@ -1148,7 +1139,7 @@ function rm($fileglob){
 //$a->add_protocolos('\\');
 //$a->temProtocolo('\\aaa.asp');
 //echo $a->leficheiro("D:/mowes_portable/www/esmusers/classes/files/SinopticoAlunos.csv"); // le um ficheiro
-//$a->dir('D:/sites/qti');
+//$a->dir('/var/www/html/galeriaview/2do/fs/');
 //$a->soDir('D:/sites\qti/dados.mdb');
 //$a->dir($a->getCam());
 //$a->gravaFicheiroTexto("D:/testeficheiro/Novo.txt","Hoje est� um belo dia & isto fica na 2� linha");
